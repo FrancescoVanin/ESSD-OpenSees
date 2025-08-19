@@ -6,13 +6,12 @@ on:
 
 jobs:
   build:
-    runs-on: macos-14
-    env:
-      SDKROOT: ${{ steps.sdk.outputs.path }}
+    runs-on: macos-14   # try macos-15 if available
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Print toolchain
+      - name: Toolchain info
         run: |
           sw_vers
           xcodebuild -version
@@ -22,13 +21,14 @@ jobs:
         run: |
           brew update
           brew install cmake tcl-tk
-          # use Accelerate (no OpenBLAS install needed)
 
       - name: Get SDK path
         id: sdk
-        run: echo "path=$(xcrun --sdk macosx --show-sdk-path)" >> $GITHUB_OUTPUT
+        run: echo "path=$(xcrun --sdk macosx --show-sdk-path)" >> "$GITHUB_OUTPUT"
 
       - name: Configure (no MPI)
+        env:
+          SDKROOT: ${{ steps.sdk.outputs.path }}
         run: |
           rm -rf build && mkdir build && cd build
           cmake .. \
@@ -47,30 +47,8 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: opensees-macos14
+          name: opensees-macos
           path: |
             build/bin/**
             build/CMakeCache.txt
             build/CMakeFiles/**/*.log
-
-
-
-  build-mpi:
-    runs-on: macos-14
-    steps:
-      - uses: actions/checkout@v4
-      - run: |
-          brew update
-          brew install cmake open-mpi tcl-tk
-          export SDKROOT=$(xcrun --sdk macosx --show-sdk-path)
-          rm -rf build && mkdir build && cd build
-          cmake .. \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DUSE_MPI=ON \
-            -DCMAKE_C_COMPILER=$(brew --prefix open-mpi)/bin/mpicc \
-            -DCMAKE_CXX_COMPILER=$(brew --prefix open-mpi)/bin/mpic++ \
-            -DCMAKE_OSX_SYSROOT="$SDKROOT" \
-            -DTCL_INCLUDE_PATH="$(brew --prefix tcl-tk)/include" \
-            -DTCL_LIBRARY="$(brew --prefix tcl-tk)/lib/libtcl8.6.dylib" \
-            -DTCL_TCLSH="$(brew --prefix tcl-tk)/bin/tclsh8.6"
-          cmake --build build -j
